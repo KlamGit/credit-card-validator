@@ -1,0 +1,33 @@
+name: Run CLI and API Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Build Docker image
+        run: docker build -t credit-validator .
+
+      - name: Run CLI test
+        run: docker run --rm credit-validator /usr/local/bin/bash test.sh
+
+      - name: Run API container in background
+        run: |
+          docker run -d --name api-server -p 8080:8080 credit-validator /usr/local/bin/api
+          sleep 3  # wait a moment for the server to start
+
+      - name: Test API endpoint
+        run: |
+          curl "http://localhost:8080/?card=4111111111111111" | grep '"valid": true'
+          curl "http://localhost:8080/?card=4111111111111111" | grep '"type": "VISA"'
+
+      - name: Stop and remove API container
+        run: docker stop api-server && d

@@ -1,14 +1,37 @@
 # Build stage
-FROM alpine:latest AS builder
-RUN apk add --no-cache gcc musl-dev libmicrohttpd-dev
+FROM ubuntu:22.04 AS builder
+
+RUN apt-get update && apt-get install -y \
+    gcc \
+    libc6-dev \
+    libmicrohttpd-dev \
+    curl \
+    bash \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY . /app
 WORKDIR /app
-RUN gcc api.c credit.c -o api -lmicrohttpd  # Build API version
-RUN gcc main.c credit.c -o cli              # Build CLI version
+
+RUN gcc api.c credit.c -o api -lmicrohttpd
+RUN gcc main.c credit.c -o cli
 
 # Runtime stage
-FROM alpine:latest
-RUN apk add --no-cache libmicrohttpd
+FROM ubuntu:22.04
+
+# Combine all package operations in one RUN layer
+RUN apt-get update && apt-get install -y \
+    libmicrohttpd12 \
+    curl \
+    bash \
+    net-tools \
+    lsof \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY --from=builder /app/api /app/cli /usr/local/bin/
+
 EXPOSE 8080
-CMD ["/usr/local/bin/api"]  # Default: Run the API
+HEALTHCHECK --interval=30s --timeout=3s \
+  CMD curl -f http://localhost:8080/ || exit 1
+
+ENTRYPOINT ["/bin/bash", "-c"]
+CMD ["/usr/local/bin/api"]
